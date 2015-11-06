@@ -1,0 +1,34 @@
+{
+  "name": "nightwatch-visual-regression",
+  "version": "1.0.0",
+  "description": "Capture and compare screenshots within a given tolerance as a nightwatch assertion",
+  "main": "assertions/visualRegression.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rykus0/nightwatch-visual-regression.git"
+  },
+  "keywords": [
+    "nightwatch",
+    "nightwatchjs",
+    "regression",
+    "screenshot",
+    "resemble",
+    "compare"
+  ],
+  "author": "Tom Pietrosanti",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Rykus0/nightwatch-visual-regression/issues"
+  },
+  "homepage": "https://github.com/Rykus0/nightwatch-visual-regression#readme",
+  "dependencies": {
+    "fs-extra": "^0.26.2",
+    "gm": "^1.21.1",
+    "node-resemble-js": "0.0.4",
+    "path": "^0.12.7",
+    "util": "^0.10.3"
+  }
+}
