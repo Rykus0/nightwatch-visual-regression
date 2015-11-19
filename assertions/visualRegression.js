@@ -64,8 +64,11 @@ var compareToBaseline = function(screenshotFile, callback){
     var fBase;
     var fDiff;
 
-    // If baseline doesn't exist, copy screenshot there
-    if( !fse.ensureFileSync(baseFilename) ){
+    // fs.exists is deprecated, so we need to check file existance this way...
+    try {
+        statBase = fse.statSync(baseFilename);
+    } catch(e) {
+        // Baseline doesn't exist, new screenshot is baseline
         fse.copySync(newFilename, baseFilename);
     }
 
