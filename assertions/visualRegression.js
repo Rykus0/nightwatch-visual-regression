@@ -146,7 +146,8 @@ exports.assertion = function(selector, label, msg) {
 
         // On a failure, save the diff file to the error folder
         if( failed && result ){
-            result.getDiffImage().pack().pipe(fse.createWriteStream(errorFilename));
+            // Already packed earlier, when diff file written
+            result.getDiffImage().pipe(fse.createWriteStream(errorFilename));
 
             this.message = util.format('Visual Regression: Screen differs by %s% (see: %s)', selElement, this.value(result), errorFilename);
         }
