@@ -81,6 +81,7 @@ var compareToBaseline = function(screenshotFile, callback){
             .ignoreAntialiasing()
             .onComplete(function(data){
                 // Write diff file
+                fse.ensureFileSync(diffFilename);
                 data.getDiffImage().pack().pipe(fse.createWriteStream(diffFilename));
 
                 // Remove previous error file, if it exists
@@ -147,6 +148,7 @@ exports.assertion = function(selector, label, msg) {
         // On a failure, save the diff file to the error folder
         if( failed && result ){
             // Already packed earlier, when diff file written
+            fse.ensureFileSync(errorFilename);
             result.getDiffImage().pipe(fse.createWriteStream(errorFilename));
 
             this.message = util.format('Visual Regression: Screen differs by %s% (see: %s)', selElement, this.value(result), errorFilename);
