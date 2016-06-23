@@ -4,41 +4,46 @@ var path     = require('path');
 var resemble = require('node-resemble-js');
 
 /**
+ * @typedef {Object} Coordinates
+ * @property {Number} x
+ * @property {Number} y
+ */
+
+/**
+ * @typedef {Object} Dimensions
+ * @property {Number} width
+ * @property {Number} height
+ */
+
+/**
  * Crops the screenshot to the bounding box of the given element
  * Note: This uses gm, which requires that you install graphicsMagick or imageMagick
  * @see https://www.npmjs.com/package/gm
- * @param  {String}   file     Path and filename of the screenshot to crop
- * @param  {String}   selector Selector of the element to crop to
- * @param  {Function} cb       Callback invoked when the process is finished
- * @return {Object}            Returns 'this' to allow chaining
+ * @param  {String}      file   Path and filename of the screenshot to crop
+ * @param  {Coordinates} origin Coordinates of upper-left corner of area to crop
+ * @param  {Dimensions}  size   2-D Dimensions of the area to crop
+ * @param  {Function}    cb     Callback invoked when the process is finished
+ * @return {Object}             Returns 'this' to allow chaining
  */
-var cropElement = function(file, selector, cb) {
-    // Get the coordinates of the element
-    this.getLocation(selector, function(results){
-        var origin = results.value;
+var cropElement = function(file, origin, size, cb) {
+    var gm = require('gm');
+    var self = this;
 
-        // Get width and height of the element
-        this.getElementSize(selector, function(results){
-            var gm   = require('gm');
-            var size = results.value;
-
-            // Crop the screenshot to desired element
-            gm(file)
-                .crop(size.width, size.height, origin.x, origin.y)
-                .write(file, function(err){
-                    if (err) {
-                        console.log('Failure cropping screenshot');
-                        console.log(err);
-                    }
-                })
-            ;
-
+    // Crop the screenshot to desired element
+    gm(file)
+        .crop(size.width, size.height, origin.x, origin.y)
+        .write(file, function(err){
             // All Operations Finished, trigger callback
             if( typeof cb === "function" ){
-                cb.call(this);
+                cb.call(self);
             }
-        });
-    });
+
+            if (err) {
+                console.log('Failure cropping screenshot');
+                console.log(err);
+            }
+        })
+    ;
 
     return this;
 };
@@ -53,7 +58,7 @@ var cropElement = function(file, selector, cb) {
  * @return {Object}                  Return 'this' to allow chaining
  */
 var compareToBaseline = function(screenshotFile, callback){
-    var options       = this.globals.visualRegression
+    var options       = this.globals.visualRegression;
     var diffFile      = screenshotFile.replace(/(\.[a-zA-Z0-9]+)$/, '.diff$1');
     var baseFilename  = path.join(options.baselineFolder,  screenshotFile);
     var newFilename   = path.join(options.currentFolder,   screenshotFile);
@@ -63,6 +68,8 @@ var compareToBaseline = function(screenshotFile, callback){
     var fNew;
     var fBase;
     var fDiff;
+
+    var statBase;
 
     // fs.exists is deprecated, so we need to check file existance this way...
     try {
@@ -84,8 +91,12 @@ var compareToBaseline = function(screenshotFile, callback){
                 fse.ensureFileSync(diffFilename);
                 data.getDiffImage().pack().pipe(fse.createWriteStream(diffFilename));
 
-                // Remove previous error file, if it exists
-                fse.removeSync(errorFilename);
+                try {
+                    // Remove previous error file, if it exists
+                    fse.removeSync(errorFilename);
+                } catch(e) {
+                    //nothing
+                }
 
                 // Save a reference to the relative screenshot path for later use
                 data.screenshotFile = screenshotFile;
@@ -102,6 +113,7 @@ var compareToBaseline = function(screenshotFile, callback){
     return this;
 };
 
+
 /**
  * This assertion compares a screenshot to a baseline
  * If the mismatch percentage is greater than the predefined tolerance, it fails
@@ -115,6 +127,19 @@ exports.assertion = function(selector, label, msg) {
     var options    = this.api.globals.visualRegression;
     var selElement = selector || options.defaultSelector;
 
+    // If the selector comes from a section of a page object
+    // selector will be an array of objects starting from the outermost
+    // ancestor (section), and ending with the element
+    // Join their selectors in order
+    if( selector && typeof selector !== 'string' ){
+        selElement = '';
+
+        for( var i = 0; i < selector.length; i++ ){
+            oElement = selector[i];
+            selElement += ' ' + oElement.selector;
+        }
+    }
+
     // Separate the screenshots by client
     var filepath   = path.join(
         this.api.currentTest.module,           // Test Name
@@ -127,10 +152,10 @@ exports.assertion = function(selector, label, msg) {
 
     // Generate a filename unique to this test/element combination
     var filename   = this.api.currentTest.name +             // Test Step
-                     (selElement ? '__' + selElement : '') + // Element
+                     (selElement ? '__' + selElement.replace(/\W+/g, '_') : '') + // Element
                      (label      ? '--' + label      : '') + // Custom Label
                      '.png'                                  // Extension
-
+    ;
 
     this.expected = options.mismatchTolerance;
     this.message  = msg || util.format('Visual Regression: "%s" change is less than %s%', selElement, this.expected);
@@ -141,17 +166,21 @@ exports.assertion = function(selector, label, msg) {
     };
 
     this.failure = function(result) {
-        var failed             = !result || !this.pass( this.value(result) );
-        var screenshotFileDiff = result.screenshotFile.replace( /(\.[a-zA-Z0-9]+)$/, '.diff$1' );
-        var errorFilename      = path.join( options.errorFolder, screenshotFileDiff );
+        var failed        = !result || !this.pass( this.value(result) );
+        var diffFile      = result.screenshotFile.replace(/(\.[a-zA-Z0-9]+)$/, '.diff$1');
+        var errorFilename = path.join(options.errorFolder, diffFile);
 
         // On a failure, save the diff file to the error folder
         if( failed && result ){
             // Already packed earlier, when diff file written
-            fse.ensureFileSync(errorFilename);
-            result.getDiffImage().pipe(fse.createWriteStream(errorFilename));
+            try {
+                fse.ensureFileSync(errorFilename);
+                result.getDiffImage().pipe(fse.createWriteStream(errorFilename));
+            } catch(e) {
+                console.log(e);
+            }
 
-            this.message = util.format('Visual Regression: Screen differs by %s% (see: %s)', selElement, this.value(result), errorFilename);
+            this.message = util.format('Visual Regression: Screen differs by %s% (see: %s)', this.value(result), errorFilename);
         }
 
         return failed;
@@ -181,12 +210,26 @@ exports.assertion = function(selector, label, msg) {
 
                 // For capture/crop, work in the 'new' folder
                 // For compare, only pass the relative portion of the filename
-                if( selector ){
-                    this.saveScreenshot.call(this, path.join(options.currentFolder , file), function(){
-                        cropElement.call(this, path.join(options.currentFolder , file), selector, function(){
-                            compareToBaseline.call(this, file, callback);
+                if( selElement ){
+
+                    // This was failing called within the saveScreenshot callback, so moved here
+                    this.getLocation(selector||selElement, function(results){
+                        var origin = results.value;
+
+                        this.getElementSize(selector || selElement, function(results){
+                            // Get width and height of the element
+                            var size = results.value;
+
+                            this.saveScreenshot(path.join(options.currentFolder , file), function(){
+                                // use selector if defined - may be from a page object
+                                // otherwise, use the element selector string
+                                cropElement.call(this, path.join(options.currentFolder , file), origin, size, function(){
+                                    compareToBaseline.call(this, file, callback);
+                                });
+                            });
                         });
                     });
+
                 } else {
                     this.saveScreenshot.call(this, path.join(options.currentFolder , file), function(){
                         compareToBaseline.call(this, file, callback);
