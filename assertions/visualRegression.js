@@ -207,7 +207,7 @@ exports.assertion = function(selector, label, msg) {
                         //nothing
                     }
 
-                    if (!self.pass(data)) {
+                    if (!self.pass(self.value(data))) {
                         // On a failure, save the diff file to the error folder
                         // Already packed earlier, when diff file written
                         try {
