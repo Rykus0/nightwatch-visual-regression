@@ -265,7 +265,7 @@ exports.assertion = function(selector, label, msg) {
                 if( selElement ){
 
                     // This was failing called within the saveScreenshot callback, so moved here
-                    this.getLocation(selector||selElement, function(results){
+                    this.getLocationInView(selector||selElement, function(results){
                         var origin = results.value;
 
                         this.getElementSize(selector || selElement, function(results){
